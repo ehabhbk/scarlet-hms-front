@@ -139,7 +139,32 @@ export function ReportsPage() {
             </Button>
             <Button onClick={exportReport} disabled={loading}>
               <Download className="h-4 w-4" />
-              {t('reports.export')}
+              {t('reports.export')} CSV
+            </Button>
+            <Button
+              variant="outline"
+              disabled={loading}
+              onClick={async () => {
+                try {
+                  const response = await api.get('/reports/export', {
+                    params: { format: 'pdf' },
+                    responseType: 'blob',
+                  })
+                  const url = URL.createObjectURL(response.data as Blob)
+                  const link = document.createElement('a')
+                  link.href = url
+                  link.download = `scarlet-report-${today}.pdf`
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+                  URL.revokeObjectURL(url)
+                } catch {
+                  toast.error(t('reports.loadError'))
+                }
+              }}
+            >
+              <Download className="h-4 w-4" />
+              PDF
             </Button>
           </>
         }

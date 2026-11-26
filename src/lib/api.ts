@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import type { ApiEnvelope } from './types'
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://server/scarlet-hms/public/api'
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1'
 
 const TOKEN_KEY = 'scarlet_token'
 
