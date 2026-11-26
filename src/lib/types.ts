@@ -641,7 +641,8 @@ export interface LabOrderItem {
   id: number
   lab_order_id: number
   lab_test_id: number
-  test?: LabTest & { parameters?: LabTestParameter[] }
+  test?: LabTest & { parameters?: LabTestParameter[]; devices?: LabDevice[] }
+  assigned_device?: LabDevice | null
   order?: LabOrder | null
   values?: LabResultValue[]
   status: 'pending' | 'entered' | 'approved'
@@ -658,6 +659,9 @@ export interface LabOrderItem {
   approved_by?: number | null
   approved_by_user?: User | null
   approved_at?: string | null
+  printed_at?: string | null
+  printed_by?: number | null
+  printed_by_user?: User | null
   source?: 'manual' | 'device'
   source_device_id?: number | null
   source_device?: LabDevice | null
@@ -681,6 +685,36 @@ export interface LabOrder {
   notes?: string | null
   items?: LabOrderItem[]
   created_at: string
+}
+
+export interface LabWorklistOrder {
+  id: number
+  order_number: string
+  status: string
+  ordered_at?: string | null
+  notes?: string | null
+  patient?: Patient | null
+  registration_branch?: Branch | null
+  doctor?: User | null
+  branch?: Branch | null
+  tests_count: number
+  result_status?: 'printed' | 'approved' | 'entered' | 'empty'
+  all_approved?: boolean
+  payment?: {
+    invoice_number: string
+    status: Invoice['status']
+    total: number
+    paid: number
+    balance: number
+    currency: string
+  } | null
+  insurance?: {
+    provider?: InsuranceProvider | null
+    policy_number: string
+    valid_to?: string | null
+    status: string
+  } | null
+  items: LabOrderItem[]
 }
 
 export interface RadiologyOrder {
@@ -903,6 +937,27 @@ export interface LabDeviceMessage {
   status: string
   parsed_summary?: string | null
   received_at?: string | null
+}
+
+export interface LabDeviceValue {
+  parameter_id: number
+  code: string
+  name_ar: string
+  value: string
+  unit?: string | null
+  flag?: string | null
+}
+
+export interface LabDeviceFetchResult {
+  lab_order_item_id: number
+  device: LabDevice | null
+  message: {
+    id: number
+    status: string
+    received_at?: string | null
+    parsed_summary?: string | null
+  } | null
+  values: LabDeviceValue[]
 }
 
 export interface Surgery {

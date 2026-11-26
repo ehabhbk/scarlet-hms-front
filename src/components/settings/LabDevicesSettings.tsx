@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { api, parseApiError } from '@/lib/api'
 import { validateDeviceEndpoint } from '@/lib/deviceValidation'
-import type { ApiEnvelope, LabDevice, LabTest } from '@/lib/types'
+import type { ApiEnvelope, LabDevice, LabTest, Setting } from '@/lib/types'
 
 type DeviceForm = {
   code: string
@@ -99,8 +99,54 @@ export function LabDevicesSettings() {
   const rows = devicesQuery.data ?? []
   const tests = testsQuery.data ?? []
 
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: async () => {
+      const { data } = await api.get<ApiEnvelope<{ settings: Setting[] }>>('/settings')
+      return data.data.settings
+    },
+  })
+
+  const allowEmptyResults = Boolean(
+    settingsQuery.data?.find((setting) => setting.key === 'lab_allow_empty_results')?.value ?? false,
+  )
+
+  const allowEmptyMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      await api.put('/settings', {
+        settings: {
+          lab_allow_empty_results: { value, group: 'laboratory', is_public: false },
+        },
+      })
+    },
+    onSuccess: () => {
+      toast.success('تم حفظ إعداد المختبر')
+      void queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+    onError: (error) => toast.error(parseApiError(error).message || 'تعذر حفظ إعداد المختبر'),
+  })
+
   return (
     <div>
+      <div className="card mb-3 flex flex-wrap items-center justify-between gap-3 p-4">
+        <div>
+          <p className="text-sm font-black text-ink">السماح باعتماد نتائج بحقول فارغة</p>
+          <p className="mt-1 text-[11px] text-ink-subtle">
+            عند الإيقاف لا يستطيع المشرف توقيع فحص فيه قيمة مفقودة.
+          </p>
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface-muted/40 px-3 py-2 text-xs font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={allowEmptyResults}
+            disabled={allowEmptyMutation.isPending}
+            onChange={(event) => allowEmptyMutation.mutate(event.target.checked)}
+            className="h-4 w-4 accent-scarlet-700"
+          />
+          {allowEmptyResults ? 'مسموح' : 'ممنوع'}
+        </label>
+      </div>
+
       <div className="mb-3 flex justify-end">
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setOpen(true) }}>
           <Plus className="h-4 w-4" /> إضافة جهاز

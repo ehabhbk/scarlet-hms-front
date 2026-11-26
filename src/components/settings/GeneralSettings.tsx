@@ -49,6 +49,7 @@ const keyLabels: Record<string, string> = {
   service_default_price: 'السعر الافتراضي للخدمة',
   lab_auto_approve: 'اعتماد نتائج المختبر تلقائيًا',
   lab_device_sync_interval: 'فترة مزامنة أجهزة المختبر (ثانية)',
+  lab_allow_empty_results: 'السماح باعتماد نتائج بحقول فارغة',
   whatsapp_enabled: 'تفعيل واتساب',
   whatsapp_api_url: 'رابط API واتساب',
   whatsapp_token: 'رمز واتساب',

@@ -1,19 +1,10 @@
-import { useEffect, useState } from 'react'
+﻿import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  CheckCircle2,
-  ClipboardList,
-  FlaskConical,
-  Microscope,
-  Plus,
-  Printer,
-  Search,
-  TestTubes,
-} from 'lucide-react'
+import { CheckCircle2, ClipboardList, Microscope, Plus, Printer, Search, TestTubes } from 'lucide-react'
 import { toast } from 'sonner'
-import { PageHeader, EmptyState, TableSkeleton } from '@/components/ui/PageHeader'
+import { ResultEntryWorkspace } from '@/components/laboratory/ResultEntryWorkspace'
+import { EmptyState, TableSkeleton } from '@/components/ui/PageHeader'
 import { Pagination } from '@/components/ui/Pagination'
-import { Tabs } from '@/components/ui/Tabs'
 import { Button } from '@/components/ui/Button'
 import { Field, Input, Select, Textarea } from '@/components/ui/Field'
 import { Modal } from '@/components/ui/Modal'
@@ -32,18 +23,12 @@ import type {
 } from '@/lib/types'
 
 type LabSection = 'collection' | 'results'
-type ResultFilter = 'pending' | 'entered' | 'approved'
 
 const fullAccessRoles = ['admin', 'super_admin', 'laboratory_supervisor']
 
 function canCollectSamples(user: ReturnType<typeof useCurrentUser>): boolean {
   const roles = user?.role_names ?? []
   return !roles.includes('laboratory_technician') || roles.some((role) => fullAccessRoles.includes(role))
-}
-
-function canEnterResults(user: ReturnType<typeof useCurrentUser>): boolean {
-  const roles = user?.role_names ?? []
-  return !roles.includes('sample_collector') || roles.some((role) => fullAccessRoles.includes(role))
 }
 
 export function LaboratoryPage() {
@@ -54,40 +39,81 @@ export function LaboratoryPage() {
     { id: 'results' as const, label: 'نتائج المختبر', icon: Microscope, hint: 'إدخال النتائج والتوقيع والطباعة' },
   ]
 
+  const steps = [
+    { label: 'طلب فحص', icon: ClipboardList },
+    { label: 'جمع العينة', icon: TestTubes },
+    { label: 'إدخال النتيجة', icon: Microscope },
+    { label: 'توقيع واعتماد', icon: CheckCircle2 },
+    { label: 'طباعة', icon: Printer },
+  ]
+
   return (
-    <div>
-      <PageHeader title="المختبر" subtitle="إدارة سير عمل المختبر من جمع العينة حتى طباعة النتيجة المُعتمدة" />
-      <div className="grid gap-4 lg:grid-cols-[230px_1fr]">
-        <aside className="space-y-1.5">
-          {sections.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSection(item.id)}
+    <div className="space-y-4">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-scarlet-950 via-scarlet-900 to-scarlet-800 p-5 text-white shadow-lift">
+        <div className="pointer-events-none absolute -start-12 -top-20 h-56 w-56 rounded-full border-[26px] border-white/5" />
+        <div className="pointer-events-none absolute -bottom-24 end-10 h-52 w-52 rounded-full bg-white/5 blur-2xl" />
+
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">Scarlet Care · Laboratory</p>
+            <h1 className="mt-1 text-2xl font-black">المختبر</h1>
+            <p className="mt-1 text-sm text-white/70">من استقبال العينة حتى طباعة النتيجة المُعتمدة</p>
+          </div>
+
+          <ol className="flex flex-wrap items-center gap-1.5">
+            {steps.map((step, index) => {
+              const Icon = step.icon
+              return (
+                <li key={step.label} className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1.5 text-[11px] font-bold ring-1 ring-white/15">
+                    <Icon className="h-3.5 w-3.5" />
+                    {step.label}
+                  </span>
+                  {index < steps.length - 1 ? <span className="text-white/30">‹</span> : null}
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+      </section>
+
+      <div className="flex gap-2 overflow-x-auto rounded-2xl border border-line bg-surface p-1.5">
+        {sections.map((item) => {
+          const Icon = item.icon
+          const active = section === item.id
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setSection(item.id)}
+              className={cn(
+                'flex min-w-52 flex-1 items-center gap-3 rounded-xl px-3.5 py-2.5 text-start transition',
+                active
+                  ? 'bg-scarlet-800 text-white shadow-sm'
+                  : 'text-ink hover:bg-surface-muted',
+              )}
+            >
+              <span
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-start transition',
-                  section === item.id
-                    ? 'bg-scarlet-800 text-white shadow-sm'
-                    : 'bg-surface text-ink hover:bg-surface-muted',
+                  'grid h-9 w-9 shrink-0 place-items-center rounded-xl',
+                  active ? 'bg-white/15' : 'bg-scarlet-50 text-scarlet-700',
                 )}
               >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold">{item.label}</span>
-                  <span className={cn('block text-[11px]', section === item.id ? 'text-white/70' : 'text-ink-subtle')}>
-                    {item.hint}
-                  </span>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold">{item.label}</span>
+                <span className={cn('block text-[10px]', active ? 'text-white/70' : 'text-ink-subtle')}>
+                  {item.hint}
                 </span>
-              </button>
-            )
-          })}
-        </aside>
+              </span>
+            </button>
+          )
+        })}
+      </div>
 
-        <div className="min-w-0">
-          {section === 'collection' ? <SampleCollectionPanel /> : <LabResultsPanel />}
-        </div>
+      <div className="min-w-0">
+        {section === 'collection' ? <SampleCollectionPanel /> : <ResultEntryWorkspace />}
       </div>
     </div>
   )
@@ -352,340 +378,4 @@ function NewLabOrderModal({ open, onClose }: { open: boolean; onClose: () => voi
       </Field>
     </Modal>
   )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Lab results                                                                */
-/* -------------------------------------------------------------------------- */
-
-function LabResultsPanel() {
-  const locale = useLocale()
-  const canManage = usePermission('laboratory.manage')
-  const canEnter = canManage && canEnterResults(useCurrentUser())
-  const canApprove = usePermission('laboratory.approve')
-  const queryClient = useQueryClient()
-  const [filter, setFilter] = useState<ResultFilter>('pending')
-  const [page, setPage] = useState(1)
-  const [entryItem, setEntryItem] = useState<LabOrderItem | null>(null)
-
-  const resultsQuery = useQuery({
-    queryKey: ['lab-order-items', 'results', filter, page],
-    queryFn: async () => {
-      const { data } = await api.get<ApiEnvelope<LabOrderItem[]>>('/lab-order-items', {
-        params: { result_status: filter, page, per_page: 15 },
-      })
-      return { rows: data.data, meta: data.meta as ApiMeta }
-    },
-  })
-
-  const approveMutation = useMutation({
-    mutationFn: async (item: LabOrderItem) => { await api.post(`/lab-order-items/${item.id}/approve`) },
-    onSuccess: () => {
-      toast.success('تم توقيع واعتماد النتيجة')
-      void queryClient.invalidateQueries({ queryKey: ['lab-order-items'] })
-    },
-    onError: (error) => toast.error(parseApiError(error).message || 'تعذر الاعتماد'),
-  })
-
-  const rows = resultsQuery.data?.rows ?? []
-  const pagination = resultsQuery.data?.meta?.pagination
-
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          items={[
-            { id: 'pending', label: 'بانتظار النتيجة' },
-            { id: 'entered', label: 'نتائج مُدخلة' },
-            { id: 'approved', label: 'نتائج معتمدة' },
-          ]}
-          value={filter}
-          onChange={(value) => { setFilter(value as ResultFilter); setPage(1) }}
-        />
-        {filter === 'approved' ? (
-          <span className="text-xs text-ink-subtle">يمكن طباعة النتائج المعتمدة من زر «طباعة»</span>
-        ) : null}
-      </div>
-
-      <div className="table-shell">
-        {resultsQuery.isLoading ? <TableSkeleton rows={8} /> : rows.length ? (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>رقم الطلب</th><th>المريض</th><th>الفحص</th><th>جمع العينة</th>
-                <th>النتيجة</th><th>المصدر</th><th>الحالة</th><th>الإجراءات</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.id}>
-                  <td className="font-mono text-xs">{item.order?.order_number ?? `#${item.lab_order_id}`}</td>
-                  <td className="font-semibold">{patientDisplayName(item.order?.patient, locale)}</td>
-                  <td>{item.test?.name_ar ?? '—'}</td>
-                  <td className="text-xs">{formatDateTime(item.sample_collected_at, locale)}</td>
-                  <td className="max-w-52 truncate text-xs" title={item.result_value ?? ''}>
-                    {item.result_value ?? '—'}
-                  </td>
-                  <td className="text-xs">
-                    {item.source === 'device'
-                      ? (item.source_device?.name ?? 'جهاز متصل')
-                      : 'إدخال يدوي'}
-                  </td>
-                  <td>
-                    <Badge tone={item.status === 'approved' ? 'success' : item.status === 'entered' ? 'warning' : 'neutral'} dot>
-                      {item.status === 'approved' ? 'معتمدة' : item.status === 'entered' ? 'مدخلة' : 'بانتظار'}
-                    </Badge>
-                  </td>
-                  <td className="flex flex-wrap gap-1">
-                    {canEnter && item.status === 'pending' ? (
-                      <Button size="sm" onClick={() => setEntryItem(item)}>
-                        <ClipboardList className="h-3.5 w-3.5" /> إدخال النتيجة
-                      </Button>
-                    ) : null}
-                    {canEnter && item.status === 'entered' ? (
-                      <Button size="sm" variant="secondary" onClick={() => setEntryItem(item)}>تعديل النتيجة</Button>
-                    ) : null}
-                    {canApprove && item.status === 'entered' ? (
-                      <Button size="sm" onClick={() => approveMutation.mutate(item)} loading={approveMutation.isPending && approveMutation.variables?.id === item.id}>
-                        <CheckCircle2 className="h-3.5 w-3.5" /> توقيع واعتماد
-                      </Button>
-                    ) : null}
-                    {item.status !== 'pending' ? (
-                      <Button size="sm" variant="outline" onClick={() => printLabResult(item)}>
-                        <Printer className="h-3.5 w-3.5" /> طباعة
-                      </Button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <EmptyState icon={FlaskConical} title="لا توجد نتائج في هذا التصنيف" />}
-        {pagination ? (
-          <Pagination
-            page={pagination.current_page}
-            lastPage={pagination.last_page}
-            total={pagination.total}
-            from={pagination.from}
-            to={pagination.to}
-            onChange={setPage}
-          />
-        ) : null}
-      </div>
-
-      <ResultEntryModal item={entryItem} onClose={() => setEntryItem(null)} />
-    </div>
-  )
-}
-
-function ResultEntryModal({ item, onClose }: { item: LabOrderItem | null; onClose: () => void }) {
-  const locale = useLocale()
-  const queryClient = useQueryClient()
-  const parameters = item?.test?.parameters ?? []
-  const [values, setValues] = useState<Record<number, string>>({})
-  const [flags, setFlags] = useState<Record<number, string>>({})
-  const [resultValue, setResultValue] = useState('')
-  const [flag, setFlag] = useState('')
-  const [notes, setNotes] = useState('')
-
-  useEffect(() => {
-    if (!item) return
-    setValues(Object.fromEntries((item.values ?? []).map((value) => [value.lab_test_parameter_id, value.value ?? ''])))
-    setFlags(Object.fromEntries((item.values ?? []).map((value) => [value.lab_test_parameter_id, value.flag ?? ''])))
-    setResultValue(item.result_value ?? '')
-    setFlag(item.flag ?? '')
-    setNotes(item.notes ?? '')
-  }, [item?.id])
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!item) return
-      if (parameters.length) {
-        await api.post(`/lab-order-items/${item.id}/values`, {
-          values: parameters.map((parameter) => ({
-            parameter_id: parameter.id,
-            value: values[parameter.id] ?? '',
-            flag: flags[parameter.id] || null,
-          })),
-        })
-      } else {
-        await api.post(`/lab-order-items/${item.id}/result`, {
-          result_value: resultValue,
-          flag: flag || null,
-          notes: notes || null,
-        })
-      }
-    },
-    onSuccess: () => {
-      toast.success('تم حفظ النتيجة')
-      onClose()
-      void queryClient.invalidateQueries({ queryKey: ['lab-order-items'] })
-    },
-    onError: (error) => toast.error(parseApiError(error).message || 'تعذر حفظ النتيجة'),
-  })
-
-  if (!item) return null
-
-  return (
-    <Modal
-      open={Boolean(item)}
-      onClose={onClose}
-      title={`إدخال نتيجة: ${item.test?.name_ar ?? ''}`}
-      description={`المريض: ${patientDisplayName(item.order?.patient, locale)} — ${item.order?.order_number ?? ''}`}
-      size="lg"
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>إلغاء</Button>
-          <Button loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>حفظ النتيجة</Button>
-        </>
-      }
-    >
-      {parameters.length ? (
-        <div className="space-y-3">
-          <p className="text-xs text-ink-subtle">أدخل قيمة كل براميتر. لن تُعتمد النتيجة إلا بعد التوقيع.</p>
-          <div className="table-shell">
-            <table className="data-table">
-              <thead><tr><th>البراميتر</th><th>الوحدة</th><th>المدى الطبيعي</th><th>القيمة</th><th>علامة</th></tr></thead>
-              <tbody>
-                {parameters.map((parameter) => (
-                  <tr key={parameter.id}>
-                    <td className="font-semibold">{parameter.name_ar}</td>
-                    <td>{parameter.unit ?? '—'}</td>
-                    <td className="text-xs">{parameter.reference_range ?? '—'}</td>
-                    <td>
-                      <Input
-                        className="w-28"
-                        value={values[parameter.id] ?? ''}
-                        onChange={(event) => setValues((prev) => ({ ...prev, [parameter.id]: event.target.value }))}
-                        placeholder="القيمة"
-                      />
-                    </td>
-                    <td>
-                      <Select
-                        className="w-24"
-                        value={flags[parameter.id] ?? ''}
-                        onChange={(event) => setFlags((prev) => ({ ...prev, [parameter.id]: event.target.value }))}
-                      >
-                        <option value="">—</option>
-                        <option value="low">منخفض</option>
-                        <option value="high">مرتفع</option>
-                        <option value="critical">حرج</option>
-                      </Select>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="قيمة النتيجة" required className="sm:col-span-2">
-            <Input value={resultValue} onChange={(event) => setResultValue(event.target.value)} placeholder="مثال: 13.5" />
-          </Field>
-          <Field label="علامة النتيجة">
-            <Select value={flag} onChange={(event) => setFlag(event.target.value)}>
-              <option value="">طبيعية</option>
-              <option value="low">منخفضة</option>
-              <option value="high">مرتفعة</option>
-              <option value="critical">حرجة</option>
-            </Select>
-          </Field>
-          <Field label="ملاحظات">
-            <Input value={notes} onChange={(event) => setNotes(event.target.value)} />
-          </Field>
-        </div>
-      )}
-    </Modal>
-  )
-}
-
-/* -------------------------------------------------------------------------- */
-/* Printing                                                                   */
-/* -------------------------------------------------------------------------- */
-
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-}
-
-function printLabResult(item: LabOrderItem) {
-  const parameters = item.test?.parameters ?? []
-  const values = item.values ?? []
-
-  const parameterRows = parameters.length
-    ? parameters.map((parameter, index) => {
-      const value = values.find((entry) => entry.lab_test_parameter_id === parameter.id)
-      return `<tr>
-        <td>${index + 1}</td>
-        <td>${escapeHtml(parameter.name_ar)}</td>
-        <td>${escapeHtml(value?.value ?? '—')}</td>
-        <td>${escapeHtml(parameter.unit ?? '—')}</td>
-        <td>${escapeHtml(parameter.reference_range ?? '—')}</td>
-        <td>${escapeHtml(value?.flag ?? '—')}</td>
-      </tr>`
-    }).join('')
-    : `<tr><td>1</td><td>النتيجة</td><td>${escapeHtml(item.result_value ?? '—')}</td><td>${escapeHtml(item.result_unit ?? '—')}</td><td>—</td><td>${escapeHtml(item.flag ?? '—')}</td></tr>`
-
-  const html = `<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8" />
-<title>نتيجة مختبر — ${escapeHtml(item.order?.order_number ?? item.id)}</title>
-<style>
-  body { font-family: Tahoma, Arial, sans-serif; color: #1a1a1a; margin: 32px; }
-  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #7a1028; padding-bottom: 12px; margin-bottom: 20px; }
-  h1 { font-size: 22px; margin: 0; color: #7a1028; }
-  .meta { font-size: 13px; line-height: 1.9; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { border: 1px solid #bbb; padding: 8px; text-align: right; }
-  th { background: #f3e9ec; }
-  footer { margin-top: 28px; font-size: 12px; display: flex; justify-content: space-between; }
-  @page { margin: 20mm; }
-</style>
-</head>
-<body>
-<header>
-  <div>
-    <h1>Scarlet Care — تقرير نتيجة مختبر</h1>
-    <div class="meta">مستشفى سكارلت العام</div>
-  </div>
-  <div class="meta">
-    رقم الطلب: ${escapeHtml(item.order?.order_number ?? item.id)}<br />
-    التاريخ: ${escapeHtml(new Date().toLocaleString('ar-SD'))}
-  </div>
-</header>
-<div class="meta">
-  <strong>المريض:</strong> ${escapeHtml(item.order?.patient ? patientDisplayName(item.order.patient, 'ar') : '—')}<br />
-  <strong>رقم الملف:</strong> ${escapeHtml(item.order?.patient?.mrn ?? '—')}<br />
-  <strong>الفحص:</strong> ${escapeHtml(item.test?.name_ar ?? '—')}<br />
-  <strong>وقت جمع العينة:</strong> ${escapeHtml(item.sample_collected_at ?? '—')}<br />
-  <strong>وقت إدخال النتيجة:</strong> ${escapeHtml(item.entered_at ?? '—')}<br />
-  <strong>اعتماد:</strong> ${escapeHtml(item.approved_by_user?.name ?? (item.approved_at ? 'معتمد' : 'غير معتمد'))}
-</div>
-<table>
-  <thead><tr><th>#</th><th>البراميتر</th><th>القيمة</th><th>الوحدة</th><th>المدى الطبيعي</th><th>العلامة</th></tr></thead>
-  <tbody>${parameterRows}</tbody>
-</table>
-<footer>
-  <div>اسم المُدخل: ${escapeHtml(item.entered_by_user?.name ?? '—')}</div>
-  <div>توقيع المُعتمد: ${escapeHtml(item.approved_by_user?.name ?? '—')}</div>
-</footer>
-<script>window.onload = function () { window.print(); };</script>
-</body>
-</html>`
-
-  const printWindow = window.open('', '_blank', 'width=900,height=700')
-  if (!printWindow) {
-    toast.error('سمح للمتصفح بفتح نافذة الطباعة')
-    return
-  }
-  printWindow.document.open()
-  printWindow.document.write(html)
-  printWindow.document.close()
-  printWindow.focus()
 }
