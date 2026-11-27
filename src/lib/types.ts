@@ -845,6 +845,148 @@ export interface JournalEntry {
 }
 
 
+// Finance reports and expenses
+export type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
+
+export interface ChartAccount {
+  id: number
+  parent_id: number | null
+  code: string
+  name: string
+  name_ar?: string | null
+  name_en?: string | null
+  type: AccountType
+  opening_balance: number
+  balance: number
+  is_active: boolean
+  notes?: string | null
+}
+
+export interface TrialBalanceRow {
+  account_id: number
+  id: number
+  code: string
+  name: string
+  name_ar?: string | null
+  name_en?: string | null
+  type: AccountType
+  opening_balance: number
+  debit: number
+  credit: number
+  balance: number
+}
+
+export interface StatementRow {
+  id: number
+  code: string
+  name: string
+  name_ar?: string | null
+  name_en?: string | null
+  amount: number
+}
+
+export interface IncomeStatement {
+  from: string | null
+  to: string | null
+  revenue: StatementRow[]
+  expense: StatementRow[]
+  total_revenue: number
+  total_expense: number
+  net_income: number
+}
+
+export interface BalanceSheet {
+  as_of: string
+  assets: StatementRow[]
+  liabilities: StatementRow[]
+  equity: StatementRow[]
+  total_assets: number
+  total_liabilities: number
+  total_equity: number
+  total_liabilities_equity: number
+}
+
+export interface LedgerLine {
+  date: string
+  entry_number: string
+  reference: string | null
+  account_id: number
+  account_code: string | null
+  account_name: string | null
+  description: string | null
+  debit: number
+  credit: number
+  balance: number
+}
+
+export interface LedgerPerAccount {
+  id: number
+  code: string
+  name: string
+  debit: number
+  credit: number
+  opening: number
+  closing: number
+}
+
+export interface LedgerResponse {
+  account: ChartAccount
+  include_children: boolean
+  account_ids: number[]
+  opening_balance: number
+  lines: LedgerLine[]
+  closing_balance: number
+  total_debit: number
+  total_credit: number
+  per_account: LedgerPerAccount[]
+}
+
+export interface JournalLineRecord {
+  id: number
+  journal_entry_id: number
+  account_id: number
+  account?: {
+    id: number
+    code: string
+    name: string
+    name_ar?: string | null
+    name_en?: string | null
+  } | null
+  account_code?: string | null
+  account_name?: string | null
+  debit: number
+  credit: number
+  description: string | null
+}
+
+export interface JournalRecord {
+  id: number
+  entry_number: string
+  entry_date: string
+  description: string | null
+  reference: string | null
+  reference_type?: string | null
+  reference_id?: number | null
+  status: string
+  creator?: { id: number; name: string } | null
+  lines: JournalLineRecord[]
+  created_at?: string
+}
+
+export interface FinanceExpense {
+  id: number
+  category: string
+  account_id: number
+  account?: Pick<Account, 'id' | 'code' | 'name_ar' | 'name_en' | 'type'> | null
+  amount: number
+  expense_date: string
+  description?: string | null
+  receipt?: string | null
+  payment_method: string
+  is_approved: boolean
+  creator?: { id: number; name: string } | null
+}
+
 // HR / Inpatient / Insurance contracts / Devices
 export interface Employee {
   id: number

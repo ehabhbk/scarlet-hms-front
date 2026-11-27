@@ -8,7 +8,15 @@ import { DashboardPage } from '@/pages/DashboardPage'
 import { PatientsPage } from '@/pages/PatientsPage'
 import { PatientDetailPage } from '@/pages/PatientDetailPage'
 import { PatientFormPage } from '@/pages/PatientFormPage'
-import { AccountingPage } from '@/pages/AccountingPage'
+import { FinancePage } from '@/pages/finance/FinancePage'
+import { ChartOfAccountsPage } from '@/pages/finance/ChartOfAccountsPage'
+import { TrialBalancePage } from '@/pages/finance/TrialBalancePage'
+import { AccountStatementPage } from '@/pages/finance/AccountStatementPage'
+import { JournalEntriesPage } from '@/pages/finance/JournalEntriesPage'
+import { LedgerPage } from '@/pages/finance/LedgerPage'
+import { IncomeStatementPage } from '@/pages/finance/IncomeStatementPage'
+import { BalanceSheetPage } from '@/pages/finance/BalanceSheetPage'
+import { ExpensesPage } from '@/pages/finance/ExpensesPage'
 import { AppointmentsPage } from '@/pages/AppointmentsPage'
 import { AttendancePage } from '@/pages/AttendancePage'
 import { PayrollPage } from '@/pages/PayrollPage'
@@ -87,7 +95,32 @@ export default function App() {
           <Route path="/roles" element={guard('roles.manage', <RolesPage />)} />
           <Route path="/reports" element={guard('dashboard.view', <ReportsPage />)} />
           <Route path="/audit" element={guard('audit.view', <AuditPage />)} />
-          <Route path="/accounting" element={guard('accounting.view', <AccountingPage />)} />
+          <Route path="/accounting" element={<Navigate to="/finance" replace />} />
+
+          <Route path="/finance" element={guard('accounting.view', <FinancePage />)} />
+          <Route
+            path="/finance/chart-of-accounts"
+            element={guard('accounting.view', <ChartOfAccountsPage />)}
+          />
+          <Route path="/finance/trial-balance" element={guard('accounting.view', <TrialBalancePage />)} />
+          <Route
+            path="/finance/account-statement"
+            element={guard('accounting.view', <AccountStatementPage />)}
+          />
+          <Route
+            path="/finance/journal-entries"
+            element={guard('accounting.view', <JournalEntriesPage />)}
+          />
+          <Route path="/finance/ledger" element={guard('accounting.view', <LedgerPage />)} />
+          <Route
+            path="/finance/income-statement"
+            element={guard('accounting.view', <IncomeStatementPage />)}
+          />
+          <Route
+            path="/finance/balance-sheet"
+            element={guard('accounting.view', <BalanceSheetPage />)}
+          />
+          <Route path="/expenses" element={guard('accounting.view', <ExpensesPage />)} />
           <Route path="/settings" element={guard('settings.manage', <SettingsPage />)} />
         </Route>
       </Route>
