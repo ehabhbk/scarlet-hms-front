@@ -717,6 +717,26 @@ export interface LabWorklistOrder {
   items: LabOrderItem[]
 }
 
+export interface LabCollectionOrder {
+  id: number
+  order_number: string
+  status: LabOrder['status']
+  ordered_at?: string | null
+  notes?: string | null
+  patient?: Patient | null
+  registration_branch?: Branch | null
+  doctor?: User | null
+  branch?: Branch | null
+  tests_count: number
+  collected_count: number
+  pending_count: number
+  collection_status: 'pending' | 'partial' | 'collected'
+  first_collected_at?: string | null
+  payment?: LabWorklistOrder['payment']
+  insurance?: LabWorklistOrder['insurance']
+  items: LabOrderItem[]
+}
+
 export interface RadiologyOrder {
   id: number
   order_number: string
@@ -743,6 +763,48 @@ export interface RadiologyOrder {
   study?: RadiologyStudy | null
   result_received_at?: string | null
   created_at: string
+}
+
+export interface RadiologyImage {
+  id: number
+  radiology_order_id?: number | null
+  radiology_device_id?: number | null
+  radiology_device_message_id?: number | null
+  device?: Pick<RadiologyDevice, 'id' | 'code' | 'name'> | null
+  path: string
+  sop_uid?: string | null
+  study_uid?: string | null
+  modality?: string | null
+  mime_type: string
+  received_at?: string | null
+}
+
+export interface RadiologyWorklistOrder extends RadiologyOrder {
+  printed_at?: string | null
+  printer?: User | null
+  result_status: 'printed' | 'approved' | 'received' | 'entered' | 'empty' | 'cancelled'
+  registration_branch?: Branch | null
+  source_message?: Pick<RadiologyDeviceMessage, 'id' | 'status' | 'parsed_summary' | 'received_at'> | null
+  payment?: LabWorklistOrder['payment']
+  insurance?: LabWorklistOrder['insurance']
+}
+
+export interface RadiologyDeviceData {
+  order: RadiologyOrder
+  devices: (RadiologyDevice & { mapped_reason?: 'study' | 'modality' })[]
+  messages: RadiologyDeviceMessage[]
+  images: RadiologyImage[]
+  polls?: {
+    device: Pick<RadiologyDevice, 'id' | 'code' | 'name'>
+    result: {
+      ok: boolean
+      frames: number
+      imported: number
+      error?: string | null
+      protocol?: string | null
+      query_sent?: string | null
+    }
+  }[]
 }
 
 
@@ -864,7 +926,49 @@ export interface LabDevice {
   port?: number | null
   status: string
   last_sync_at?: string | null
+  direction?: 'push' | 'pull' | 'bidirectional'
+  poll_enabled?: boolean
+  poll_interval_seconds?: number
+  poll_query?: string | null
+  poll_query_encoding?: 'literal' | 'hex' | 'base64'
+  protocol_detected?: string | null
+  last_poll_at?: string | null
+  last_error?: string | null
   tests?: LabTest[]
+}
+
+export interface ClinicalDevice {
+  id: number
+  code: string
+  name: string
+  category: 'emergency' | 'operating_room' | 'icu' | 'ward' | 'other'
+  protocol: string
+  host?: string | null
+  port?: number | null
+  direction: 'push' | 'pull' | 'bidirectional'
+  poll_enabled: boolean
+  poll_interval_seconds: number
+  poll_query?: string | null
+  poll_query_encoding: 'literal' | 'hex' | 'base64'
+  protocol_detected?: string | null
+  status: string
+  last_poll_at?: string | null
+  last_error?: string | null
+  messages_count?: number
+}
+
+export interface ClinicalDeviceMessage {
+  id: number
+  clinical_device_id: number
+  patient_id?: number | null
+  protocol?: string | null
+  message_id?: string | null
+  patient_mrn?: string | null
+  reference?: string | null
+  raw_message: string
+  parsed_summary?: string | null
+  status: string
+  received_at: string
 }
 
 
@@ -902,6 +1006,14 @@ export interface RadiologyDevice {
   modality?: string | null
   status: string
   last_sync_at?: string | null
+  direction?: 'push' | 'pull' | 'bidirectional'
+  poll_enabled?: boolean
+  poll_interval_seconds?: number
+  poll_query?: string | null
+  poll_query_encoding?: 'literal' | 'hex' | 'base64'
+  protocol_detected?: string | null
+  last_poll_at?: string | null
+  last_error?: string | null
   studies?: RadiologyStudy[]
 }
 

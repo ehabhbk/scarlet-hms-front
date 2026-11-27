@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Field, Input, Textarea } from '@/components/ui/Field'
 import { api, parseApiError } from '@/lib/api'
 import type { ApiEnvelope, Setting } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 const groupLabels: Record<string, string> = {
   general: 'عام',
@@ -62,6 +63,7 @@ const keyLabels: Record<string, string> = {
 export function GeneralSettings() {
   const queryClient = useQueryClient()
   const [values, setValues] = useState<Record<string, unknown>>({})
+  const [activeGroup, setActiveGroup] = useState<string | null>(null)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -106,7 +108,18 @@ export function GeneralSettings() {
       list.push(setting)
       map.set(setting.group, list)
     }
-    return Array.from(map.entries())
+
+    const preferred = [
+      'general', 'hospital', 'branding', 'clinics', 'scheduling', 'queues',
+      'display', 'finance', 'patients', 'audit', 'security', 'services',
+      'laboratory', 'whatsapp',
+    ]
+
+    return Array.from(map.entries()).sort(([a], [b]) => {
+      const ai = preferred.indexOf(a)
+      const bi = preferred.indexOf(b)
+      return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi)
+    })
   }, [settingsQuery.data])
 
   if (settingsQuery.isLoading) return <TableSkeleton rows={8} />
@@ -115,62 +128,90 @@ export function GeneralSettings() {
     return <div className="card"><EmptyState icon={Settings2} title="لا توجد إعدادات" /></div>
   }
 
+  const defaultGroup = grouped.some(([group]) => group === 'general') ? 'general' : grouped[0][0]
+  const currentGroup = activeGroup && grouped.some(([group]) => group === activeGroup)
+    ? activeGroup
+    : defaultGroup
+  const currentSettings = grouped.find(([group]) => group === currentGroup)?.[1] ?? []
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5 rounded-2xl border border-line bg-surface p-1.5">
+          {grouped.map(([group, settings]) => (
+            <button
+              key={group}
+              type="button"
+              onClick={() => setActiveGroup(group)}
+              className={cn(
+                'flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition',
+                group === currentGroup
+                  ? 'bg-scarlet-800 text-white shadow-sm'
+                  : 'text-ink hover:bg-surface-muted',
+              )}
+            >
+              <span>{groupLabels[group] ?? group}</span>
+              <span className={cn(
+                'rounded-md px-1.5 py-0.5 text-[10px] font-black',
+                group === currentGroup ? 'bg-white/15 text-white' : 'bg-surface-muted text-ink-subtle',
+              )}>
+                {settings.length}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <Button onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
           <Save className="h-4 w-4" /> حفظ الإعدادات
         </Button>
       </div>
 
-      {grouped.map(([group, settings]) => (
-        <section key={group} className="card p-5">
-          <h2 className="mb-4 text-base font-bold text-ink">{groupLabels[group] ?? group}</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {settings.map((setting) => {
-              const label = keyLabels[setting.key] ?? setting.key
-              const current = values[setting.key]
+      <section className="card p-5">
+        <h2 className="mb-4 text-base font-bold text-ink">{groupLabels[currentGroup] ?? currentGroup}</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {currentSettings.map((setting) => {
+            const label = keyLabels[setting.key] ?? setting.key
+            const current = values[setting.key]
 
-              if (setting.type === 'boolean') {
-                return (
-                  <label key={setting.key} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-surface-muted/40 px-3 py-2.5">
-                    <span className="text-sm font-semibold text-ink">{label}</span>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(current)}
-                      onChange={(event) => setValues((prev) => ({ ...prev, [setting.key]: event.target.checked }))}
-                      className="h-4 w-4 accent-scarlet-700"
-                    />
-                  </label>
-                )
-              }
-
-              const isLong = String(setting.key).includes('address') || String(setting.key).includes('notice') || String(setting.key).includes('api_url')
+            if (setting.type === 'boolean') {
               return (
-                <Field key={setting.key} label={label}>
-                  {isLong ? (
-                    <Textarea
-                      value={current == null ? '' : String(current)}
-                      onChange={(event) => setValues((prev) => ({ ...prev, [setting.key]: event.target.value }))}
-                    />
-                  ) : (
-                    <Input
-                      type={setting.type === 'integer' || setting.type === 'double' ? 'number' : 'text'}
-                      value={current == null ? '' : String(current)}
-                      onChange={(event) => setValues((prev) => ({
-                        ...prev,
-                        [setting.key]: setting.type === 'integer' || setting.type === 'double'
-                          ? Number(event.target.value)
-                          : event.target.value,
-                      }))}
-                    />
-                  )}
-                </Field>
+                <label key={setting.key} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-surface-muted/40 px-3 py-2.5">
+                  <span className="text-sm font-semibold text-ink">{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(current)}
+                    onChange={(event) => setValues((prev) => ({ ...prev, [setting.key]: event.target.checked }))}
+                    className="h-4 w-4 accent-scarlet-700"
+                  />
+                </label>
               )
-            })}
-          </div>
-        </section>
-      ))}
+            }
+
+            const isLong = String(setting.key).includes('address') || String(setting.key).includes('notice') || String(setting.key).includes('api_url')
+            return (
+              <Field key={setting.key} label={label}>
+                {isLong ? (
+                  <Textarea
+                    value={current == null ? '' : String(current)}
+                    onChange={(event) => setValues((prev) => ({ ...prev, [setting.key]: event.target.value }))}
+                  />
+                ) : (
+                  <Input
+                    type={setting.type === 'integer' || setting.type === 'double' ? 'number' : 'text'}
+                    value={current == null ? '' : String(current)}
+                    onChange={(event) => setValues((prev) => ({
+                      ...prev,
+                      [setting.key]: setting.type === 'integer' || setting.type === 'double'
+                        ? Number(event.target.value)
+                        : event.target.value,
+                    }))}
+                  />
+                )}
+              </Field>
+            )
+          })}
+        </div>
+      </section>
     </div>
   )
 }

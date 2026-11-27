@@ -20,11 +20,17 @@ type DeviceForm = {
   host: string
   port: string
   status: string
+  direction: string
+  poll_enabled: boolean
+  poll_interval_seconds: string
+  poll_query: string
+  poll_query_encoding: string
   test_ids: number[]
 }
 
 const emptyForm: DeviceForm = {
-  code: '', name: '', manufacturer: '', model: '', protocol: 'HL7', host: '', port: '', status: 'active', test_ids: [],
+  code: '', name: '', manufacturer: '', model: '', protocol: 'AUTO', host: '', port: '', status: 'active',
+  direction: 'push', poll_enabled: false, poll_interval_seconds: '30', poll_query: '', poll_query_encoding: 'literal', test_ids: [],
 }
 
 export function LabDevicesSettings() {
@@ -63,6 +69,11 @@ export function LabDevicesSettings() {
         host: form.host || null,
         port: form.port ? Number(form.port) : null,
         status: form.status,
+        direction: form.direction,
+        poll_enabled: form.poll_enabled,
+        poll_interval_seconds: Number(form.poll_interval_seconds || 30),
+        poll_query: form.poll_query || null,
+        poll_query_encoding: form.poll_query_encoding,
         test_ids: form.test_ids,
       }
       if (editing) await api.patch(`/lab-devices/${editing.id}`, payload)
@@ -94,6 +105,15 @@ export function LabDevicesSettings() {
     },
     onSuccess: (response) => toast.success(response.message || 'اتصال TCP ناجح'),
     onError: (error) => toast.error(parseApiError(error).message || 'تعذر الاتصال بالجهاز'),
+  })
+
+  const pollMutation = useMutation({
+    mutationFn: async (device: LabDevice) => {
+      const { data } = await api.post<ApiEnvelope<{ frames: number; imported: number }>>(`/lab-devices/${device.id}/poll`)
+      return data
+    },
+    onSuccess: (data) => toast.success(`تم الجلب: ${data.data?.frames ?? 0} رسالة، ${data.data?.imported ?? 0} نتيجة للمراجعة`),
+    onError: (error) => toast.error(parseApiError(error).message || 'تعذر استجواب الجهاز'),
   })
 
   const rows = devicesQuery.data ?? []
@@ -156,7 +176,7 @@ export function LabDevicesSettings() {
         {devicesQuery.isLoading ? <TableSkeleton rows={6} /> : rows.length ? (
           <table className="data-table">
             <thead>
-              <tr><th>الرمز</th><th>اسم الجهاز</th><th>الشركة</th><th>الموديل</th><th>البروتوكول</th><th>الاتصال</th><th>الفحوصات المرتبطة</th><th>الحالة</th><th>الإجراءات</th></tr>
+              <tr><th>الرمز</th><th>اسم الجهاز</th><th>الشركة</th><th>الموديل</th><th>البروتوكول</th><th>الاتصال</th><th>الفحوصات المرتبطة</th><th>السحب</th><th>الحالة</th><th>الإجراءات</th></tr>
             </thead>
             <tbody>
               {rows.map((device) => (
@@ -175,11 +195,24 @@ export function LabDevicesSettings() {
                       : <span className="text-xs text-ink-subtle">غير مربوط</span>}
                   </td>
                   <td>
+                    <Badge tone={device.poll_enabled ? 'success' : 'neutral'} dot>
+                      {device.poll_enabled ? `تلقائي كل ${device.poll_interval_seconds ?? 30}ث` : 'استقبال فقط'}
+                    </Badge>
+                  </td>
+                  <td>
                     <Badge tone={device.status === 'active' ? 'success' : 'neutral'} dot>
                       {device.status === 'active' ? 'نشط' : 'غير نشط'}
                     </Badge>
                   </td>
                   <td className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={pollMutation.isPending && pollMutation.variables?.id === device.id}
+                      onClick={() => pollMutation.mutate(device)}
+                    >
+                      جلب الآن
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => {
                       setEditing(device)
                       setForm({
@@ -191,6 +224,11 @@ export function LabDevicesSettings() {
                         host: device.host ?? '',
                         port: device.port ? String(device.port) : '',
                         status: device.status,
+                        direction: device.direction ?? 'push',
+                        poll_enabled: Boolean(device.poll_enabled),
+                        poll_interval_seconds: String(device.poll_interval_seconds ?? 30),
+                        poll_query: device.poll_query ?? '',
+                        poll_query_encoding: device.poll_query_encoding ?? 'literal',
                         test_ids: device.tests?.map((test) => test.id) ?? [],
                       })
                       setOpen(true)
@@ -233,11 +271,35 @@ export function LabDevicesSettings() {
           <Field label="الموديل"><Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} /></Field>
           <Field label="بروتوكول الاتصال">
             <Select value={form.protocol} onChange={(e) => setForm({ ...form, protocol: e.target.value })}>
-              <option value="HL7">HL7</option>
+              <option value="AUTO">اكتشاف تلقائي</option>
+              <option value="HL7">HL7 v2</option>
               <option value="ASTM">ASTM</option>
+              <option value="FHIR">FHIR</option>
+              <option value="JSON">JSON</option>
+              <option value="XML">XML / CDA</option>
               <option value="LIS">LIS</option>
               <option value="manual">يدوي</option>
             </Select>
+          </Field>
+          <Field label="اتجاه الاتصال">
+            <Select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>
+              <option value="push">الجهاز يرسل إلينا</option>
+              <option value="pull">نطلب النتيجة من الجهاز</option>
+              <option value="bidirectional">الاتجاهان</option>
+            </Select>
+          </Field>
+          <Field label="فترة الاستجواب (ثانية)">
+            <Input type="number" min="5" value={form.poll_interval_seconds} onChange={(e) => setForm({ ...form, poll_interval_seconds: e.target.value })} />
+          </Field>
+          <Field label="ترميز أمر الاستجواب">
+            <Select value={form.poll_query_encoding} onChange={(e) => setForm({ ...form, poll_query_encoding: e.target.value })}>
+              <option value="literal">نص / \x05 لـ ENQ</option>
+              <option value="hex">ست عشري (Hex)</option>
+              <option value="base64">Base64</option>
+            </Select>
+          </Field>
+          <Field label="أمر الاستجواب (اختياري)">
+            <Input value={form.poll_query} onChange={(e) => setForm({ ...form, poll_query: e.target.value })} placeholder="\x05 أو MSH|...QRY^A19" dir="ltr" />
           </Field>
           <Field label="عنوان IP للجهاز"><Input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} placeholder="192.168.1.50" /></Field>
           <Field label="منفذ الجهاز"><Input type="number" min="1" max="65535" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} placeholder="2575" /></Field>
@@ -248,6 +310,15 @@ export function LabDevicesSettings() {
             </Select>
           </Field>
         </div>
+        <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface-muted/40 px-3 py-2 text-sm font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.poll_enabled}
+            onChange={(e) => setForm({ ...form, poll_enabled: e.target.checked })}
+            className="h-4 w-4 accent-scarlet-700"
+          />
+          تفعيل السحب التلقائي من الجهاز (Host Query)
+        </label>
         <div className="mt-4">
           <p className="mb-2 text-sm font-semibold text-ink">الفحوصات المرتبطة بالجهاز</p>
           <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-line p-3 sm:grid-cols-2">

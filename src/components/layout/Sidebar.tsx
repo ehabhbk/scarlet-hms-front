@@ -1,17 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
+import type { LucideIcon } from 'lucide-react'
 import {
   BarChart3,
   BedDouble,
   BookOpen,
   CalendarDays,
-  Cpu,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   FlaskConical,
   LayoutDashboard,
   ListOrdered,
-  LogOut,
+  Microscope,
   MonitorPlay,
   Pill,
   Receipt,
@@ -21,19 +25,17 @@ import {
   Shield,
   ShieldCheck,
   Stethoscope,
+  TestTubes,
   UserCog,
   Users,
   X,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { BrandMark } from '@/components/brand/Brand'
-import { Avatar } from '@/components/ui/Avatar'
-import { Button } from '@/components/ui/Button'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { usePermission } from '@/hooks/useMeta'
-import { useIsRtl, useLocale } from '@/hooks/useLocale'
-import { nameOf } from '@/lib/format'
+import { useIsRtl } from '@/hooks/useLocale'
+import { settingsSections } from '@/lib/settingsNav'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -43,11 +45,33 @@ interface NavItem {
   permission?: string
   end?: boolean
   external?: boolean
+  children?: NavItem[]
+  activeWhen?: (location: Location) => boolean
 }
 
 interface NavSection {
   label: string
   items: NavItem[]
+}
+
+function matchesLocation(to: string, location: Location): boolean {
+  const [pathname, query = ''] = to.split('?')
+  if (location.pathname !== pathname) return false
+  if (!query) return true
+
+  const expected = new URLSearchParams(query)
+  const actual = new URLSearchParams(location.search)
+  const expectedSection = expected.get('section')
+
+  // Direct visits to /laboratory and /settings land on their first section.
+  if (expectedSection && !actual.has('section')) {
+    return (
+      (pathname === '/laboratory' && expectedSection === 'collection') ||
+      (pathname === '/settings' && expectedSection === 'general')
+    )
+  }
+
+  return Array.from(expected.entries()).every(([key, value]) => actual.get(key) === value)
 }
 
 function useNavSections(): NavSection[] {
@@ -60,20 +84,37 @@ function useNavSections(): NavSection[] {
   return [
     {
       label: 'nav.main',
-      items: [{ to: '/dashboard', label: 'nav.dashboard', icon: LayoutDashboard, permission: 'dashboard.view' }],
+      items: [{ to: '/dashboard', label: 'nav.dashboard', icon: LayoutDashboard, permission: 'dashboard.view', end: true }],
     },
     {
       label: 'nav.clinical',
       items: [
-        { to: '/patients', label: 'nav.patients', icon: Users, permission: 'patients.view' },
-        { to: '/appointments', label: 'nav.appointments', icon: CalendarDays, permission: 'appointments.view' },
-        { to: '/queues', label: 'nav.queues', icon: ListOrdered, permission: 'queues.view' },
-        { to: '/encounters', label: 'nav.encounters', icon: Stethoscope, permission: 'encounters.view' },
-        { to: '/pharmacy', label: 'nav.pharmacy', icon: Pill, permission: 'prescriptions.view' },
-        { to: '/billing', label: 'nav.billing', icon: Receipt, permission: 'billing.view' },
-        { to: '/insurance', label: 'nav.insurance', icon: Shield, permission: 'insurance.view' },
-        { to: '/laboratory', label: 'nav.laboratory', icon: FlaskConical, permission: 'laboratory.view' },
-        { to: '/radiology', label: 'nav.radiology', icon: ScanLine, permission: 'radiology.view' },
+        { to: '/patients', label: 'nav.patients', icon: Users, permission: 'patients.view', end: true },
+        { to: '/appointments', label: 'nav.appointments', icon: CalendarDays, permission: 'appointments.view', end: true },
+        { to: '/queues', label: 'nav.queues', icon: ListOrdered, permission: 'queues.view', end: true },
+        { to: '/encounters', label: 'nav.doctorNurse', icon: Stethoscope, permission: 'encounters.view', end: true },
+        {
+          to: '/laboratory',
+          label: 'nav.laboratory',
+          icon: FlaskConical,
+          permission: 'laboratory.view',
+          children: [
+            { to: '/laboratory?section=collection', label: 'nav.labCollection', icon: TestTubes },
+            { to: '/laboratory?section=results', label: 'nav.labResults', icon: Microscope },
+          ],
+        },
+        {
+          to: '/radiology',
+          label: 'nav.radiology',
+          icon: ScanLine,
+          permission: 'radiology.view',
+          children: [
+            { to: '/radiology', label: 'nav.radiologyResults', icon: ScanLine, end: true },
+          ],
+        },
+        { to: '/pharmacy', label: 'nav.pharmacy', icon: Pill, permission: 'prescriptions.view', end: true },
+        { to: '/billing', label: 'nav.billing', icon: Receipt, permission: 'billing.view', end: true },
+        { to: '/insurance', label: 'nav.insurance', icon: Shield, permission: 'insurance.view', end: true },
         {
           to: branchId ? `/display/${branchId}` : '/display',
           label: 'nav.display',
@@ -85,17 +126,32 @@ function useNavSections(): NavSection[] {
     {
       label: 'nav.administration',
       items: [
-        ...(canViewUsers ? [{ to: '/staff', label: 'nav.staff', icon: ShieldCheck }] : []),
-        ...(canManageRoles ? [{ to: '/roles', label: 'nav.roles', icon: ShieldCheck }] : []),
-        { to: '/reports', label: 'nav.reports', icon: BarChart3, permission: 'dashboard.view' },
-        { to: '/accounting', label: 'nav.accounting', icon: BookOpen, permission: 'accounting.view' },
-        { to: '/employees', label: 'nav.employees', icon: UserCog, permission: 'users.manage' },
-        { to: '/inpatient', label: 'nav.inpatient', icon: BedDouble, permission: 'patients.view' },
-        { to: '/insurance-contracts', label: 'nav.insuranceContracts', icon: FileText, permission: 'insurance.view' },
-        { to: '/lab-devices', label: 'nav.labDevices', icon: Cpu, permission: 'laboratory.view' },
-        { to: '/radiology-devices', label: 'nav.radiologyDevices', icon: ScanLine, permission: 'radiology.view' },
-        ...(canViewAudit ? [{ to: '/audit', label: 'nav.audit', icon: ScrollText }] : []),
-        ...(canManageSettings ? [{ to: '/settings', label: 'nav.settings', icon: Settings }] : []),
+        ...(canViewUsers ? [{ to: '/staff', label: 'nav.staff', icon: ShieldCheck, end: true }] : []),
+        ...(canManageRoles ? [{ to: '/roles', label: 'nav.roles', icon: ShieldCheck, end: true }] : []),
+        {
+          to: '/reports',
+          label: 'nav.reports',
+          icon: BarChart3,
+          children: [
+            { to: '/reports', label: 'nav.reportsOverview', icon: BarChart3, end: true },
+            ...(canViewAudit ? [{ to: '/audit', label: 'nav.audit', icon: ScrollText, end: true }] : []),
+            { to: '/accounting', label: 'nav.accounting', icon: BookOpen, permission: 'accounting.view', end: true },
+          ],
+        },
+        { to: '/employees', label: 'nav.employees', icon: UserCog, permission: 'users.manage', end: true },
+        { to: '/inpatient', label: 'nav.inpatient', icon: BedDouble, permission: 'patients.view', end: true },
+        { to: '/insurance-contracts', label: 'nav.insuranceContracts', icon: FileText, permission: 'insurance.view', end: true },
+        ...(canManageSettings ? [{
+          to: '/settings',
+          label: 'nav.settings',
+          icon: Settings,
+          permission: 'settings.manage',
+          children: settingsSections.map((section) => ({
+            to: section.to,
+            label: section.labelKey,
+            icon: section.icon,
+          })),
+        }] : []),
       ],
     },
   ]
@@ -103,26 +159,57 @@ function useNavSections(): NavSection[] {
 
 export function Sidebar() {
   const { t } = useTranslation()
-  const locale = useLocale()
   const isRtl = useIsRtl()
-  const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const mobileOpen = useUiStore((state) => state.mobileNavOpen)
   const setMobileNav = useUiStore((state) => state.setMobileNav)
+  const collapsed = useUiStore((state) => state.sidebarCollapsed)
+  const toggleSidebar = useUiStore((state) => state.toggleSidebar)
   const sections = useNavSections()
+  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    for (const section of sections) {
+      for (const item of section.items) {
+        if (item.children?.some((child) => matchesLocation(child.to, location))) {
+          initial[item.to] = true
+        }
+      }
+    }
+
+    return initial
+  })
 
   useEffect(() => {
     setMobileNav(false)
-  }, [location.pathname, setMobileNav])
+  }, [location.pathname, location.search, setMobileNav])
 
-  const handleLogout = async () => {
-    await logout()
-    navigate('/login', { replace: true })
-  }
+  useEffect(() => {
+    setExpanded((previous) => {
+      const next = { ...previous }
+      for (const section of sections) {
+        for (const item of section.items) {
+          if (item.children?.some((child) => matchesLocation(child.to, location))) {
+            next[item.to] = true
+          }
+        }
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, location.search])
 
   const isVisible = (item: NavItem) => !item.permission || Boolean(user?.permissions?.includes(item.permission))
+
+  const toggle = (to: string) => {
+    if (collapsed) {
+      toggleSidebar()
+      setExpanded((previous) => ({ ...previous, [to]: true }))
+      return
+    }
+
+    setExpanded((previous) => ({ ...previous, [to]: !previous[to] }))
+  }
 
   return (
     <>
@@ -136,16 +223,22 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          'fixed inset-y-0 start-0 z-50 flex w-72 flex-col bg-gradient-to-b from-[#44081A] via-[#5E0E26] to-[#32040F] text-white transition-transform duration-300 ease-out lg:z-30 lg:translate-x-0',
+          'fixed inset-y-0 start-0 z-50 flex w-72 flex-col bg-gradient-to-b from-[#44081A] via-[#5E0E26] to-[#32040F] text-white transition-[width,transform] duration-300 ease-out lg:z-30 lg:translate-x-0',
+          collapsed && 'lg:w-20',
           mobileOpen ? 'translate-x-0' : isRtl ? 'translate-x-full' : '-translate-x-full',
         )}
       >
-        <div className="flex items-center justify-between px-5 pb-2 pt-5">
+        <div
+          className={cn(
+            'flex items-center justify-between gap-3 px-5 pt-5',
+            collapsed && 'lg:flex-col lg:justify-center lg:px-3',
+          )}
+        >
           <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1 shadow-lg shadow-black/20">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-lg shadow-black/20">
               <BrandMark className="h-9 w-auto" />
             </span>
-            <div className="leading-tight">
+            <div className={cn('leading-tight', collapsed && 'lg:hidden')}>
               <p className="text-base font-extrabold tracking-tight">{t('common.appName')}</p>
               <p className="text-[11px] font-medium text-white/55">{t('common.appFullName')}</p>
             </div>
@@ -160,24 +253,98 @@ export function Sidebar() {
           </button>
         </div>
 
-        <div className="mx-5 mt-4 h-px bg-white/10" />
+        <div className={cn('mx-5 mt-4 h-px bg-white/10', collapsed && 'lg:mx-3')} />
 
-        <nav className="scrollbar-none flex-1 overflow-y-auto px-3 py-4">
+        <nav className={cn('scrollbar-none flex-1 overflow-y-auto px-3 py-4', collapsed && 'lg:px-2')}>
           {sections.map((section) => {
-            const items = section.items.filter(isVisible)
+            const items = section.items
+              .map((item) => ({
+                ...item,
+                visibleChildren: item.children?.filter(isVisible) ?? [],
+              }))
+              .filter((item) => {
+                if (item.children) {
+                  return isVisible(item) && item.visibleChildren.length > 0
+                }
+
+                return isVisible(item)
+              })
+
             if (!items.length) return null
 
             return (
               <div key={section.label} className="mb-5">
-                <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                <p className={cn('mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35', collapsed && 'lg:hidden')}>
                   {t(section.label)}
                 </p>
                 <ul className="space-y-1">
                   {items.map((item) => {
                     const Icon = item.icon
+                    const hasChildren = item.children !== undefined
+                    const groupActive = item.visibleChildren.some((child) => matchesLocation(child.to, location))
+                    const isOpen = hasChildren ? (expanded[item.to] ?? groupActive) : false
+
+                    if (hasChildren) {
+                      return (
+                        <li key={item.to}>
+                          <button
+                            type="button"
+                            onClick={() => toggle(item.to)}
+                            title={collapsed ? t(item.label) : undefined}
+                            className={cn(
+                              'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150',
+                              collapsed && 'lg:justify-center lg:gap-0 lg:px-2',
+                              groupActive
+                                ? 'bg-white/12 text-white ring-1 ring-inset ring-white/10'
+                                : 'text-white/65 hover:bg-white/8 hover:text-white',
+                            )}
+                            aria-expanded={isOpen}
+                          >
+                            <Icon className="h-[18px] w-[18px] shrink-0 opacity-80" />
+                            <span className={cn('flex-1 text-start', collapsed && 'lg:hidden')}>{t(item.label)}</span>
+                            <ChevronDown
+                              className={cn(
+                                'h-4 w-4 shrink-0 opacity-60 transition-transform',
+                                collapsed && 'lg:hidden',
+                                isOpen && 'rotate-180',
+                              )}
+                            />
+                          </button>
+                          {isOpen ? (
+                            <ul className={cn('mt-1 space-y-0.5 border-s-2 border-white/10 ps-2', collapsed && 'lg:hidden')}>
+                              {item.visibleChildren.map((child) => {
+                                const ChildIcon = child.icon
+                                const childActive = child.activeWhen
+                                  ? child.activeWhen(location)
+                                  : matchesLocation(child.to, location)
+
+                                return (
+                                  <li key={child.to}>
+                                    <Link
+                                      to={child.to}
+                                      className={cn(
+                                        'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                                        childActive
+                                          ? 'bg-white/14 text-white shadow-inner'
+                                          : 'text-white/55 hover:bg-white/8 hover:text-white',
+                                      )}
+                                    >
+                                      <ChildIcon className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                                      <span className="flex-1">{t(child.label)}</span>
+                                    </Link>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          ) : null}
+                        </li>
+                      )
+                    }
+
                     const linkClasses = ({ isActive }: { isActive: boolean }) =>
                       cn(
                         'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-150',
+                        collapsed && 'lg:justify-center lg:gap-0 lg:px-2',
                         isActive
                           ? 'bg-white/12 text-white shadow-inner ring-1 ring-inset ring-white/10'
                           : 'text-white/65 hover:bg-white/8 hover:text-white',
@@ -186,17 +353,28 @@ export function Sidebar() {
                     return (
                       <li key={item.to}>
                         {item.external ? (
-                          <a href={item.to} target="_blank" rel="noreferrer" className={linkClasses({ isActive: false })}>
+                          <a
+                            href={item.to}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={linkClasses({ isActive: false })}
+                            title={collapsed ? t(item.label) : undefined}
+                          >
                             <Icon className="h-[18px] w-[18px] shrink-0 opacity-80" />
-                            <span className="flex-1">{t(item.label)}</span>
-                            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white/60">
+                            <span className={cn('flex-1', collapsed && 'lg:hidden')}>{t(item.label)}</span>
+                            <span className={cn('rounded-md bg-white/10 px-1.5 py-0.5 text-[9px] font-bold text-white/60', collapsed && 'lg:hidden')}>
                               TV
                             </span>
                           </a>
                         ) : (
-                          <NavLink to={item.to} end={item.end} className={linkClasses}>
+                          <NavLink
+                            to={item.to}
+                            end={item.end}
+                            className={linkClasses}
+                            title={collapsed ? t(item.label) : undefined}
+                          >
                             <Icon className="h-[18px] w-[18px] shrink-0 opacity-80" />
-                            <span className="flex-1">{t(item.label)}</span>
+                            <span className={cn('flex-1', collapsed && 'lg:hidden')}>{t(item.label)}</span>
                           </NavLink>
                         )}
                       </li>
@@ -209,27 +387,24 @@ export function Sidebar() {
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-3 rounded-2xl bg-white/6 p-3 ring-1 ring-inset ring-white/10">
-            <Avatar name={user?.name ?? '?'} size="md" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold">{user?.name}</p>
-              <p className="truncate text-[11px] text-white/55">
-                {user?.display_role ?? user?.role_names?.[0] ?? user?.job_title ?? ''}
-              </p>
-              {user?.branch ? (
-                <p className="mt-0.5 truncate text-[10px] text-white/40">{nameOf(user.branch, locale)}</p>
-              ) : null}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="text-white/50 hover:bg-white/10 hover:text-white"
-              title={t('common.logout')}
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            title={collapsed ? t('nav.expand') : t('nav.collapse')}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-white/65 transition hover:bg-white/8 hover:text-white',
+              collapsed && 'lg:justify-center lg:gap-0 lg:px-2',
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className={cn('h-[18px] w-[18px] shrink-0 opacity-80', isRtl && 'rotate-180')} />
+            ) : (
+              <ChevronLeft className={cn('h-[18px] w-[18px] shrink-0 opacity-80', isRtl && 'rotate-180')} />
+            )}
+            <span className={cn('flex-1 text-start', collapsed && 'lg:hidden')}>
+              {collapsed ? t('nav.expand') : t('nav.collapse')}
+            </span>
+          </button>
         </div>
       </aside>
     </>

@@ -22,12 +22,19 @@ type DeviceForm = {
   port: string
   modality: string
   status: string
+  direction: string
+  poll_enabled: boolean
+  poll_interval_seconds: string
+  poll_query: string
+  poll_query_encoding: string
   study_ids: number[]
 }
 
 const emptyForm: DeviceForm = {
-  code: '', name: '', manufacturer: '', model: '', protocol: 'HL7',
-  ae_title: '', host: '', port: '', modality: '', status: 'active', study_ids: [],
+  code: '', name: '', manufacturer: '', model: '', protocol: 'AUTO',
+  ae_title: '', host: '', port: '', modality: '', status: 'active',
+  direction: 'push', poll_enabled: false, poll_interval_seconds: '30',
+  poll_query: '', poll_query_encoding: 'literal', study_ids: [],
 }
 
 export function RadiologyDevicesSettings() {
@@ -68,6 +75,11 @@ export function RadiologyDevicesSettings() {
         port: form.port ? Number(form.port) : null,
         modality: form.modality || null,
         status: form.status,
+        direction: form.direction,
+        poll_enabled: form.poll_enabled,
+        poll_interval_seconds: Number(form.poll_interval_seconds || 30),
+        poll_query: form.poll_query || null,
+        poll_query_encoding: form.poll_query_encoding,
         study_ids: form.study_ids,
       }
       if (editing) await api.patch(`/radiology-devices/${editing.id}`, payload)
@@ -107,6 +119,15 @@ export function RadiologyDevicesSettings() {
     },
     onSuccess: (response) => toast.success(response.message || 'اتصال TCP ناجح'),
     onError: (error) => toast.error(parseApiError(error).message || 'تعذر الاتصال بالجهاز'),
+  })
+
+  const pollMutation = useMutation({
+    mutationFn: async (device: RadiologyDevice) => {
+      const { data } = await api.post<ApiEnvelope<{ frames: number; imported: number }>>(`/radiology-devices/${device.id}/poll`)
+      return data
+    },
+    onSuccess: (data) => toast.success(`تم الجلب: ${data.data?.frames ?? 0} رسالة، ${data.data?.imported ?? 0} نتيجة للمراجعة`),
+    onError: (error) => toast.error(parseApiError(error).message || 'تعذر استجواب الجهاز'),
   })
 
   const rows = devicesQuery.data ?? []
@@ -158,6 +179,11 @@ export function RadiologyDevicesSettings() {
                         port: device.port ? String(device.port) : '',
                         modality: device.modality ?? '',
                         status: device.status,
+                        direction: device.direction ?? 'push',
+                        poll_enabled: Boolean(device.poll_enabled),
+                        poll_interval_seconds: String(device.poll_interval_seconds ?? 30),
+                        poll_query: device.poll_query ?? '',
+                        poll_query_encoding: device.poll_query_encoding ?? 'literal',
                         study_ids: device.studies?.map((study) => study.id) ?? [],
                       })
                       setOpen(true)
@@ -169,6 +195,14 @@ export function RadiologyDevicesSettings() {
                       onClick={() => testConnectionMutation.mutate(device)}
                     >
                       <PlugZap className="h-3.5 w-3.5" /> اختبار الاتصال
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={pollMutation.isPending && pollMutation.variables?.id === device.id}
+                      onClick={() => pollMutation.mutate(device)}
+                    >
+                      جلب الآن
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => toggleMutation.mutate(device)}>
                       {device.status === 'active' ? 'إلغاء النشاط' : 'تفعيل'}
@@ -203,11 +237,35 @@ export function RadiologyDevicesSettings() {
           <Field label="الموديل"><Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} /></Field>
           <Field label="بروتوكول الاتصال">
             <Select value={form.protocol} onChange={(e) => setForm({ ...form, protocol: e.target.value })}>
+              <option value="AUTO">اكتشاف تلقائي</option>
               <option value="HL7">HL7</option>
               <option value="DICOM/HL7">DICOM + HL7</option>
+              <option value="DICOM">DICOM C-STORE</option>
               <option value="ASTM">ASTM</option>
+              <option value="FHIR">FHIR</option>
+              <option value="JSON">JSON</option>
               <option value="manual">يدوي</option>
             </Select>
+          </Field>
+          <Field label="اتجاه الاتصال">
+            <Select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>
+              <option value="push">الجهاز يرسل إلينا</option>
+              <option value="pull">نطلب التقرير من الجهاز</option>
+              <option value="bidirectional">الاتجاهان</option>
+            </Select>
+          </Field>
+          <Field label="فترة الاستجواب (ثانية)">
+            <Input type="number" min="5" value={form.poll_interval_seconds} onChange={(e) => setForm({ ...form, poll_interval_seconds: e.target.value })} />
+          </Field>
+          <Field label="ترميز أمر الاستجواب">
+            <Select value={form.poll_query_encoding} onChange={(e) => setForm({ ...form, poll_query_encoding: e.target.value })}>
+              <option value="literal">نص / \x05 لـ ENQ</option>
+              <option value="hex">ست عشري (Hex)</option>
+              <option value="base64">Base64</option>
+            </Select>
+          </Field>
+          <Field label="أمر الاستجواب (اختياري)">
+            <Input value={form.poll_query} onChange={(e) => setForm({ ...form, poll_query: e.target.value })} placeholder="\x05 أو استعلام الجهاز" dir="ltr" />
           </Field>
           <Field label="نوع الجهاز (Modality)">
             <Select value={form.modality} onChange={(e) => setForm({ ...form, modality: e.target.value })}>
@@ -229,6 +287,15 @@ export function RadiologyDevicesSettings() {
             </Select>
           </Field>
         </div>
+        <label className="mt-4 flex cursor-pointer items-center gap-2 rounded-xl border border-line bg-surface-muted/40 px-3 py-2 text-sm font-bold text-ink">
+          <input
+            type="checkbox"
+            checked={form.poll_enabled}
+            onChange={(e) => setForm({ ...form, poll_enabled: e.target.checked })}
+            className="h-4 w-4 accent-scarlet-700"
+          />
+          تفعيل السحب التلقائي من الجهاز (Host Query)
+        </label>
         <div className="mt-4">
           <p className="mb-2 text-sm font-semibold text-ink">الدراسات المرتبطة بالجهاز</p>
           <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-line p-3 sm:grid-cols-2">

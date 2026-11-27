@@ -292,6 +292,7 @@ export function ResultEntryWorkspace() {
   const payment = paymentBadge(selectedOrder?.payment)
   const status = selectedItem ? itemStatus(selectedItem) : { label: 'فارغة', tone: 'neutral' as BadgeTone }
   const canPrint = Boolean(selectedOrder?.all_approved && selectedOrder.items.length)
+  const remainingApprovals = selectedOrder?.items.filter((item) => item.status !== 'approved') ?? []
   const selectedIsApproved = selectedItem?.status === 'approved'
 
   useEffect(() => {
@@ -1192,6 +1193,14 @@ ${sections}
                   >
                     طباعة النتيجة كاملة ({selectedOrder.items.length} فحوصات)
                   </ColorButton>
+                ) : remainingApprovals.length ? (
+                  <ColorButton
+                    tone="amber"
+                    icon={CheckCircle2}
+                    onClick={() => setItemId(remainingApprovals[0]?.id ?? null)}
+                  >
+                    تبقّى {remainingApprovals.length} فحص للاعتماد
+                  </ColorButton>
                 ) : (
                   <span className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-500">
                     <Info className="h-3.5 w-3.5" /> الطباعة بعد إدخال واعتماد كل الفحوصات
@@ -1367,7 +1376,12 @@ ${sections}
             ))}
           </div>
         ) : (
-          <p className="py-8 text-center text-sm text-ink-muted">لا توجد رسائل جهاز مرتبطة بهذا الرقم.</p>
+          <div className="py-6 text-center text-sm text-ink-muted">
+            <p>لا توجد رسائل جهاز مرتبطة بهذا الرقم.</p>
+            <p className="mt-2 text-xs">
+              الجلب يقرأ ما أرسله الجهاز إلى خادم النظام فقط. تأكد أن الجهاز يرسل النتيجة إلى الخادم عبر HL7 على المنفذ 2575 أو ASTM على المنفذ 2576، وأن رقم العينة في الرسالة هو {selectedOrder.order_number}.
+            </p>
+          </div>
         )}
       </Modal>
     </div>
